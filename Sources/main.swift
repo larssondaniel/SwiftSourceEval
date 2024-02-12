@@ -29,32 +29,44 @@ extension SwiftSourceEval {
                 do {
                     let fileURL = URL(fileURLWithPath: filePath)
                     let swiftCode = try String(contentsOf: fileURL, encoding: .utf8)
-                    executeSwiftCode(swiftCode)
+                    waitForExecutionToComplete(swiftCode: swiftCode)
                 } catch {
                     fatalError("Failed to read file at \(filePath): \(error)")
                 }
             } else if let code = source {
-                executeSwiftCode(code)
+                waitForExecutionToComplete(swiftCode: code)
             } else {
                 fatalError("No Swift source code or file path provided")
             }
+        }
+
+        private func waitForExecutionToComplete(swiftCode: String) {
+            let dispatchGroup = DispatchGroup()
+            dispatchGroup.enter()
+
+            let executionQueue = DispatchQueue(label: "swiftExecutionQueue")
+            executionQueue.async(group: dispatchGroup) {
+                self.executeSwiftCode(swiftCode)
+                dispatchGroup.leave()
+            }
+
+            dispatchGroup.wait()
+            print("All asyncronous execution tasks have completed.")
         }
 
         private func executeSwiftCode(_ code: String) {
             let tempFilePath = NSTemporaryDirectory() + "temp.swift"
             let tempFileURL = URL(fileURLWithPath: tempFilePath)
 
-            var output = ""
-            var errorOutput = ""
-
             do {
                 try code.write(to: tempFileURL, atomically: true, encoding: .utf8)
                 let process = Process()
+                // Run process in sandbox
                 process.launchPath = "/usr/bin/sandbox-exec"
-                // Run process with sandbox profile
                 process.arguments = ["-f", "./swiftexec.sb", "/usr/bin/swift", tempFilePath]
                 let outputPipe = Pipe()
                 let errorPipe = Pipe()
+
                 process.standardOutput = outputPipe
                 process.standardError = errorPipe
                 process.launch()
@@ -62,8 +74,8 @@ extension SwiftSourceEval {
 
                 let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                output = String(data: outputData, encoding: .utf8) ?? ""
-                errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+                let output = String(data: outputData, encoding: .utf8) ?? ""
+                let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
 
                 handleExecutionOutput(output, errorOutput: errorOutput)
 
