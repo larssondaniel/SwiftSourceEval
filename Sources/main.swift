@@ -91,13 +91,40 @@ extension SwiftSourceEval {
                 print("Execution Output: \(output)")
             }
             if !errorOutput.isEmpty {
-                print("Error Output: \(errorOutput)")
+                let structuredErrors = parseCompilerMessages(errorOutput)
+                print("Compiler Messages: \(structuredErrors)")
                 // TODO: Parse errorOutput to structure it as needed
             }
             // Future updates may include more detailed parsing and structuring of error messages
             // and warnings for a clearer output.
         }
+
+        private func parseCompilerMessages(_ messages: String) -> [CompilerMessage] {
+            let lines = messages.split(separator: "\n")
+            var compilerMessages: [CompilerMessage] = []
+
+            for line in lines {
+                // Simple parsing logic to differentiate errors from warnings
+                // This is a placeholder and should be replaced with more robust parsing
+                if line.contains("error: ") {
+                    compilerMessages.append(CompilerMessage(type: .error, message: String(line)))
+                } else if line.contains("warning: ") {
+                    compilerMessages.append(CompilerMessage(type: .warning, message: String(line)))
+                }
+            }
+
+            return compilerMessages
+        }
     }
+}
+
+struct CompilerMessage {
+    enum MessageType {
+        case error, warning
+    }
+
+    let type: MessageType
+    let message: String
 }
 
 SwiftSourceEval.Run.main()
