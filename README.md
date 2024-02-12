@@ -1,4 +1,3 @@
-
 # SwiftSourceEval
 
 A command-line tool for executing Swift code dynamically.
