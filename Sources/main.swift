@@ -65,6 +65,9 @@ extension SwiftSourceEval {
                 errorOutput = String(data: errorData, encoding: .utf8) ?? ""
 
                 handleExecutionOutput(output, errorOutput: errorOutput)
+
+                // Clean up the temporary file
+                try FileManager.default.removeItem(at: tempFileURL)
             } catch {
                 fatalError("Failed to execute Swift code:\(error)")
             }
