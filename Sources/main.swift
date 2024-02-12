@@ -5,6 +5,8 @@
 //  Created by Daniel Larsson on 2/12/24.
 //
 
+#if os(macOS)
+
 import ArgumentParser
 import Foundation
 
@@ -65,7 +67,9 @@ extension SwiftSourceEval {
                 try code.write(to: tempFileURL, atomically: true, encoding: .utf8)
                 let process = Process()
                 // Run process in sandbox
-                process.launchPath = "/usr/bin/sandbox-exec"
+                if #available(macOS 13.0, *) {
+                    process.executableURL = URL(filePath: "/usr/bin/sandbox-exec")
+                }
                 process.arguments = ["-f", "./swiftexec.sb", "/usr/bin/swift", tempFilePath]
                 let outputPipe = Pipe()
                 let errorPipe = Pipe()
@@ -147,3 +151,5 @@ enum ExecutionError: Error {
 }
 
 SwiftSourceEval.Run.main()
+
+#endif
