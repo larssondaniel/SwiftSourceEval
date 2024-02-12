@@ -25,7 +25,6 @@ extension SwiftSourceEval {
 
         func run() throws {
             print("Executing Swift code from file: \(file ?? "no file provided")")
-            // Placeholder for code execution logic
             if let filePath = file {
                 do {
                     let fileURL = URL(fileURLWithPath: filePath)
@@ -45,16 +44,42 @@ extension SwiftSourceEval {
             let tempFilePath = NSTemporaryDirectory() + "temp.swift"
             let tempFileURL = URL(fileURLWithPath: tempFilePath)
 
+            var output = ""
+            var errorOutput = ""
+
             do {
                 try code.write(to: tempFileURL, atomically: true, encoding: .utf8)
                 let process = Process()
                 process.launchPath = "/usr/bin/swift"
                 process.arguments = [tempFilePath]
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
                 process.launch()
                 process.waitUntilExit()
+
+                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                output = String(data: outputData, encoding: .utf8) ?? ""
+                errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+
+                handleExecutionOutput(output, errorOutput: errorOutput)
             } catch {
                 fatalError("Failed to execute Swift code:\(error)")
             }
+        }
+
+        private func handleExecutionOutput(_ output: String, errorOutput: String) {
+            if !output.isEmpty {
+                print("Execution Output: \(output)")
+            }
+            if !errorOutput.isEmpty {
+                print("Error Output: \(errorOutput)")
+                // TODO: Parse errorOutput to structure it as needed
+            }
+            // Future updates may include more detailed parsing and structuring of error messages
+            // and warnings for a clearer output.
         }
     }
 }
