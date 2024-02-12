@@ -22,16 +22,16 @@ extension SwiftSourceEval {
     struct Run: ParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Run Swift source code.")
 
-        @Argument(help: "Swift source code to execute.")
+        @Option(help: "Swift source code to execute.")
         var source: String?
 
         @Option(name: .shortAndLong, help: "Path to the Swift file to execute.")
         var file: String?
 
         func run() throws {
-            print("Executing Swift code from file: \(file ?? "no file provided")")
             if let filePath = file {
                 do {
+                    print("Executing Swift code from file: \(filePath)")
                     let fileURL = URL(fileURLWithPath: filePath)
                     let swiftCode = try String(contentsOf: fileURL, encoding: .utf8)
                     waitForExecutionToComplete(swiftCode: swiftCode)
@@ -60,6 +60,7 @@ extension SwiftSourceEval {
         }
 
         private func executeSwiftCode(_ code: String) {
+            print("Debug - Received code for execution: \(code)")
             let tempFilePath = NSTemporaryDirectory() + "temp.swift"
             let tempFileURL = URL(fileURLWithPath: tempFilePath)
 
@@ -79,7 +80,7 @@ extension SwiftSourceEval {
                 let timeout = DispatchTime.now() + ExecutionConfig.executionTimeout
                 let executionQueue = DispatchQueue(label: "processExecutionQueue")
                 let processCompletion = DispatchSemaphore(value: 0)
-                process.launch()
+                try process.run()
 
                 executionQueue.async {
                     process.waitUntilExit()
@@ -88,34 +89,35 @@ extension SwiftSourceEval {
 
                 if processCompletion.wait(timeout: timeout) == .timedOut {
                     process.terminate()
+                    print("Debug - Execution timed out")
                     throw ExecutionError.timeout
                 }
 
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: outputData, encoding: .utf8) ?? ""
-                let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+                if #available(macOS 10.15.4, *) {
+                    let executionResult = ProcessExecutionResult(
+                        output: try outputPipe.fileHandleForReading.readToEnd().map { String(data: $0, encoding: .utf8)! },
+                        error: try errorPipe.fileHandleForReading.readToEnd().map { String(data: $0, encoding: .utf8)! },
+                        status: Int(process.terminationStatus)
+                    )
 
-                handleExecutionOutput(output, errorOutput: errorOutput)
+                    handleExecutionResult(executionResult)
+                }
 
                 // Clean up the temporary file
                 try FileManager.default.removeItem(at: tempFileURL)
             } catch {
-                fatalError("Failed to execute Swift code:\(error)")
+                fatalError("Failed to execute Swift code: \(error)")
             }
         }
 
-        private func handleExecutionOutput(_ output: String, errorOutput: String) {
-            if !output.isEmpty {
+        private func handleExecutionResult(_ executionResult: ProcessExecutionResult) {
+            if let output = executionResult.output {
                 print("Execution Output: \(output)")
             }
-            if !errorOutput.isEmpty {
+            if let errorOutput = executionResult.error {
                 let structuredErrors = parseCompilerMessages(errorOutput)
                 print("Compiler Messages: \(structuredErrors)")
-                // TODO: Parse errorOutput to structure it as needed
             }
-            // Future updates may include more detailed parsing and structuring of error messages
-            // and warnings for a clearer output.
         }
 
         private func parseCompilerMessages(_ messages: String) -> [CompilerMessage] {
@@ -148,6 +150,12 @@ struct CompilerMessage {
 
 enum ExecutionError: Error {
     case timeout
+}
+
+public struct ProcessExecutionResult: Hashable, Equatable {
+    var output: String?
+    var error: String?
+    var status: Int
 }
 
 SwiftSourceEval.Run.main()
