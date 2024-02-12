@@ -1,0 +1,9 @@
+```sandbox
+(version 1)
+(deny default)
+(allow process-exec (literal "/usr/bin/swift"))
+(allow file-read* (subpath "/usr/lib/swift"))
+(allow file-read* (subpath "/Applications/Xcode.app"))
+(allow file-read* (subpath "/Library/Developer/CommandLineTools"))
+(allow file-read* (subpath "/private/tmp"))
+```

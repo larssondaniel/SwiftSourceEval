@@ -50,8 +50,9 @@ extension SwiftSourceEval {
             do {
                 try code.write(to: tempFileURL, atomically: true, encoding: .utf8)
                 let process = Process()
-                process.launchPath = "/usr/bin/swift"
-                process.arguments = [tempFilePath]
+                process.launchPath = "/usr/bin/sandbox-exec"
+                // Run process with sandbox profile
+                process.arguments = ["-f", "./swiftexec.sb", "/usr/bin/swift", tempFilePath]
                 let outputPipe = Pipe()
                 let errorPipe = Pipe()
                 process.standardOutput = outputPipe
