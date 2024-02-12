@@ -8,8 +8,11 @@
 import ArgumentParser
 import Foundation
 
-struct SwiftSourceEval: ParsableCommand {
+struct ExecutionConfig {
+    static let executionTimeout: TimeInterval = 5 // Timeout in seconds
+}
 
+struct SwiftSourceEval: ParsableCommand {
     static let configuration = CommandConfiguration(abstract: "A utility for executing Swift code.", subcommands: [Run.self], defaultSubcommand: Run.self)
 }
 
@@ -69,8 +72,20 @@ extension SwiftSourceEval {
 
                 process.standardOutput = outputPipe
                 process.standardError = errorPipe
+                let timeout = DispatchTime.now() + ExecutionConfig.executionTimeout
+                let executionQueue = DispatchQueue(label: "processExecutionQueue")
+                let processCompletion = DispatchSemaphore(value: 0)
                 process.launch()
-                process.waitUntilExit()
+
+                executionQueue.async {
+                    process.waitUntilExit()
+                    processCompletion.signal()
+                }
+
+                if processCompletion.wait(timeout: timeout) == .timedOut {
+                    process.terminate()
+                    throw ExecutionError.timeout
+                }
 
                 let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
@@ -125,6 +140,10 @@ struct CompilerMessage {
 
     let type: MessageType
     let message: String
+}
+
+enum ExecutionError: Error {
+    case timeout
 }
 
 SwiftSourceEval.Run.main()
